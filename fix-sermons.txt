@@ -1,0 +1,18 @@
+Parts of the commands inside <...> are to be replaced as appropriate; everything else is verbatim.
+
+Run "ffmpeg -i <video file.m2ts> -b:a 48k <low quality.mp3>"
+Use Audacity to figure out how to sync up the audio (copy the two MP3s to your own system if you're working remotely):
+ - Import both the high quality sermon MP3 and the above low quality MP3
+ - Zoom in to the start (something like 0:00 - 0:30). Solo the low quality file and listen to the first few seconds; then solo the high quality file and listen to the first few seconds. Identify a common feature (such as the start of the Bible reading).
+ - Select the common feature in the low quality file and amplify it (Effects -> Amplify; accept the default values).
+ - Ensure both tracks are un-Solo'd.
+ - Zoom in to fill the window with the common feature (e.g. < 5 seconds worth). Use the Time Shift Tool (double-headed arrow) to move the high quality file (NOT the low quality file) to match the low quality file. Use both the visual waveform as well as audio playback to perfectly match the two files.
+ - Select the high quality track (e.g. click under L--[]--R). Note the Selection Start (listed at the bottom of the window)
+ - Locate the point you want the video to start at (e.g. just before Chris starts reading). 
+ - Move to the end of the track and locate the point you want the video to end at (e.g. immediately after the prayer)
+ - Your desired length is <end point> - <start point> (e.g. 50:50 - 0:4.5 = 50:54.5)
+Run "ffmpeg -i <video file.m2ts> -itsoffset <Selection Start> -i <High Quality.mp3> -map 0:0 -map 1:0 -c:a copy -c:v libx264 -crf 26 -preset ultrafast -profile:v high -pix_fmt yuv420p -ss <start point> -t 20 -vf yadif <test output.mkv>"
+View <test output.mkv> to make sure everything looks right
+Run "ffmpeg -i <video file.m2ts> -itsoffset <Selection Start> -i <High Quality.mp3> -map 0:0 -map 1:0 -c:a copy -c:v libx264 -crf 26 -preset slow -profile:v high -pix_fmt yuv420p -ss <start point> -t <desired length> -vf yadif <output.mkv>"
+Wait a few hours ...
+Upload <output.mkv> to Youtube
