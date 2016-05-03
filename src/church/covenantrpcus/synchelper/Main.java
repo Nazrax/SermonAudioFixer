@@ -39,12 +39,14 @@ public class Main {
   static JLabel videoPathLabel, audioPathLabel;
   static JButton extractAudioButton, chooseVideoFileButton, chooseAudioFileButton, generatePreviewsButton;
   private static JTextField offsetField, startTimeField, endTimeField;
+private static JButton generateOutputButton;
   
   static void disableButtons() {
     extractAudioButton.setEnabled(false);
     chooseVideoFileButton.setEnabled(false);
     chooseAudioFileButton.setEnabled(false);
     generatePreviewsButton.setEnabled(false);
+    generateOutputButton.setEnabled(false);
   }
   
   static void conditionallyEnableButtons() {
@@ -61,9 +63,11 @@ public class Main {
         !startTimeField.getText().isEmpty() && !startTimeField.getText().equals("00:00:00.00") && 
         !endTimeField.getText().isEmpty() && !endTimeField.getText().equals("00:00:00.00") &&
         selectedAudioFile.file != null && selectedVideoFile.file != null) {
-      generatePreviewsButton.setEnabled(true);
+        generatePreviewsButton.setEnabled(true);
+        generateOutputButton.setEnabled(true);
     } else {
       generatePreviewsButton.setEnabled(false);
+      generateOutputButton.setEnabled(false);
     }
   }
   
@@ -71,7 +75,7 @@ public class Main {
     final String outputPath = selectedVideoFile.file.getAbsolutePath().replaceAll("\\.[^\\.]+$", "") + "-" + suffix;
     final String logPath = selectedVideoFile.file.getAbsolutePath().replaceAll("\\.[^\\.]+$", "") + "-" + suffix + ".log";
     final List<String> cmdList = new ArrayList<String>();
-    cmdList.add("/home/aabraham/software/bin/ffmpeg");
+    cmdList.add("ffmpeg");
     cmdList.add("-n");
     Collections.addAll(cmdList, arguments);
     cmdList.add(outputPath);
@@ -169,10 +173,10 @@ public class Main {
   
   public static void main(String[] args) {
     prefs = Preferences.userRoot().node("/net/shadowspire/RenderHelper");
-    boolean inWindows = System.getProperty("os.name").startsWith("Windows");
+    //boolean inWindows = System.getProperty("os.name").startsWith("Windows");
     
     // Frame
-    frame = new JFrame("Sync Helper");
+    frame = new JFrame("Sermon Audio Replacer");
     frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
     // Step 1
@@ -253,7 +257,7 @@ public class Main {
     // Step 3
     JPanel step3Panel = new JPanel();
     step3Panel.setLayout(new GridBagLayout());
-    step3Panel.setBorder(BorderFactory.createTitledBorder("Step 3: Previews"));
+    step3Panel.setBorder(BorderFactory.createTitledBorder("Step 3: Preview"));
 
     generatePreviewsButton = new JButton("Generate preview");
     generatePreviewsButton.setEnabled(false);
@@ -266,9 +270,9 @@ public class Main {
       @Override
       public void actionPerformed(ActionEvent e) {
         new Thread() {
-          Double endPreviewStartTime = timeToSeconds(endTimeField.getText()) - 20;
+          //Double endPreviewStartTime = timeToSeconds(endTimeField.getText()) - 20;
           String[] startCmdArray = createEncodeCommand(startTimeField.getText(), new String[] { "-preset", "ultrafast", "-t", "20", "-vf", "scale=720:540" });
-          String[] endCmdArray = createEncodeCommand(endPreviewStartTime.toString(), new String[] { "-preset", "ultrafast", "-t", "20" });
+          //String[] endCmdArray = createEncodeCommand(endPreviewStartTime.toString(), new String[] { "-preset", "ultrafast", "-t", "20" });
 
           public void run() {
             step3ProgressLabel.setText("Generating preview");
@@ -282,6 +286,27 @@ public class Main {
         }.start();
       }});
 
+    // Step 4
+    JPanel step4Panel = new JPanel();
+    step4Panel.setLayout(new GridBagLayout());
+    step4Panel.setBorder(BorderFactory.createTitledBorder("Step 4: Final output"));
+
+    generateOutputButton = new JButton("Generate output");
+    generateOutputButton.setEnabled(false);
+    step4Panel.add(generateOutputButton, gbc(0, 0, 1, 1, 0, 0, NONE));
+
+    final JLabel step4ProgressLabel = new JLabel ("No progress to report");
+    step4Panel.add(step4ProgressLabel, gbc(1, 0, 1, 1, 1, 0, HORIZONTAL));
+
+    generateOutputButton.addActionListener(new ActionListener() {
+      @Override
+      public void actionPerformed(ActionEvent e) {
+          final String[] cmdArray = createEncodeCommand(
+        		  startTimeField.getText(), 
+        		  new String[] { "-preset", "slow", "-to", endTimeField.getText() }); // TODO Change preset to slow
+          new Thread() { public void run() { runFFmpeg(cmdArray, "final.mp4", step4ProgressLabel, null); } }.start();
+      }});
+
     
     // Outer panel
     JPanel outerPanel = new JPanel();
@@ -289,6 +314,7 @@ public class Main {
     outerPanel.add(step1Panel);
     outerPanel.add(step2Panel);
     outerPanel.add(step3Panel);
+    outerPanel.add(step4Panel);
 
     frame.setContentPane(outerPanel);
     frame.pack();
@@ -307,7 +333,7 @@ public class Main {
     return c;
   }
 
-  private static double timeToSeconds(String text) {
+  public static double timeToSeconds(String text) {
     String[] split = text.split(":");
     double hour = 0, minute = 0, second;
 
