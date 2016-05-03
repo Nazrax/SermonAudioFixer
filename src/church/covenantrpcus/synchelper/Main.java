@@ -20,11 +20,13 @@ import java.util.regex.Pattern;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -32,7 +34,7 @@ import javax.swing.event.DocumentListener;
 public class Main {
   protected static final String LAST_VIDEO_PATH_KEY = "last_video_path";
   protected static final String LAST_AUDIO_PATH_KEY = "last_audio_path";
-  private static final String CRF = "26";
+  private static final String CRF = "24";
   static MutableFile selectedVideoFile = new MutableFile(), selectedAudioFile = new MutableFile();
   static JFrame frame;
   static Preferences prefs;
@@ -40,6 +42,8 @@ public class Main {
   static JButton extractAudioButton, chooseVideoFileButton, chooseAudioFileButton, generatePreviewsButton;
   private static JTextField offsetField, startTimeField, endTimeField;
 private static JButton generateOutputButton;
+private static JRadioButton lqOffsetButton;
+private static JRadioButton hqOffsetButton;
   
   static void disableButtons() {
     extractAudioButton.setEnabled(false);
@@ -76,20 +80,24 @@ private static JButton generateOutputButton;
     final String logPath = selectedVideoFile.file.getAbsolutePath().replaceAll("\\.[^\\.]+$", "") + "-" + suffix + ".log";
     final List<String> cmdList = new ArrayList<String>();
     cmdList.add("ffmpeg");
-    cmdList.add("-n");
+    cmdList.add("-y");
     Collections.addAll(cmdList, arguments);
     cmdList.add(outputPath);
     disableButtons();
     boolean success = false;
     
     if (new File(outputPath).exists()) {
-      JOptionPane.showMessageDialog(frame, "Output file " + outputPath + " already exists", "File already exists", JOptionPane.ERROR_MESSAGE);
-      conditionallyEnableButtons();
-      return false;
-    } else if (new File(logPath).exists()) {
-      JOptionPane.showMessageDialog(frame, "Output file " + logPath + " already exists", "File already exists", JOptionPane.ERROR_MESSAGE);
-      conditionallyEnableButtons();
-      return false;
+      String[] options = { "Overwrite", "Cancel" };
+      String message = "Output file " + outputPath + " already exists. Do you wish to overwrite it?";
+      String title = "Overwrite existing file?";
+      int n = JOptionPane.showOptionDialog(frame, message, title, JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[1]);
+      if (n == 1) {
+        conditionallyEnableButtons();
+        if (label != null) {
+          label.setText("Not overwriting existing file");
+        }
+        return false;
+      }
     }
     
     StringBuffer cmdString = new StringBuffer();
@@ -155,7 +163,7 @@ private static JButton generateOutputButton;
   public static String[] createEncodeCommand(String seek, String[] backArgs) {
     List<String> baseCmd = Arrays.asList(new String[] {
         "-i", selectedVideoFile.file.getAbsolutePath(),
-        "-itsoffset", offsetField.getText(), "-i", selectedAudioFile.file.getAbsolutePath(),
+        "-itsoffset", calculateOffset(), "-i", selectedAudioFile.file.getAbsolutePath(),
         "-map", "0:0", "-map", "1:0",
         "-c:a", "aac", "-strict", "-2", "-b:a", "64k",
         "-c:v", "libx264", "-crf", CRF, "-vf", "yadif", "-profile:v", "high", "-pix_fmt", "yuv420p",
@@ -213,21 +221,32 @@ private static JButton generateOutputButton;
     chooseAudioFileButton = new JButton("Choose audio file");
     step2Panel.add(chooseAudioFileButton, gbc(0, 0, 1, 1, 0, 0, NONE));
     audioPathLabel = new JLabel("Choose an MP3 file                                              ");
-    step2Panel.add(audioPathLabel, gbc(1, 0, 1, 1, 1, 0, HORIZONTAL));
+    step2Panel.add(audioPathLabel, gbc(1, 0, 2, 1, 1, 0, HORIZONTAL));
 
     chooseAudioFileButton.addActionListener(new ChooseFileActionListener(selectedAudioFile, LAST_AUDIO_PATH_KEY, audioPathLabel, "mp3"));
-
-    step2Panel.add(new JLabel("Offset:"), gbc(0, 1, 1, 1, 0, 0, NONE));
-    step2Panel.add(new JLabel("Start time:"), gbc(0, 2, 1, 1, 0, 0, NONE));
-    step2Panel.add(new JLabel("End time:"), gbc(0, 3, 1, 1, 0, 0, NONE));
+    
+    step2Panel.add(new JLabel("Which file was offset?"), gbc(0, 1, 1, 1, 0, 0, NONE));
+    lqOffsetButton = new JRadioButton("Low quality");
+    hqOffsetButton = new JRadioButton("High quality");
+    hqOffsetButton.setSelected(true);
+    ButtonGroup offsetGroup = new ButtonGroup();
+    offsetGroup.add(lqOffsetButton);
+    offsetGroup.add(hqOffsetButton);
+    
+    step2Panel.add(lqOffsetButton, gbc(1, 1, 1, 1, 0, 0, NONE));
+    step2Panel.add(hqOffsetButton, gbc(2, 1, 1, 1, 0, 0, NONE));
+    
+    step2Panel.add(new JLabel("Offset:"), gbc(0, 2, 1, 1, 0, 0, NONE));
+    step2Panel.add(new JLabel("Start time:"), gbc(0, 3, 1, 1, 0, 0, NONE));
+    step2Panel.add(new JLabel("End time:"), gbc(0, 4, 1, 1, 0, 0, NONE));
     
     offsetField = new JTextField("0.00");
-    startTimeField = new JTextField("00:00:00.00");
-    endTimeField = new JTextField("00:00:00.00");
+    startTimeField = new JTextField("00:00:00");
+    endTimeField = new JTextField("00:00:00");
     
-    step2Panel.add(offsetField, gbc(1, 1, 1, 1, 1, 0, HORIZONTAL));
-    step2Panel.add(startTimeField, gbc(1, 2, 1, 1, 1, 0, HORIZONTAL));
-    step2Panel.add(endTimeField, gbc(1, 3, 1, 1, 1, 0, HORIZONTAL));
+    step2Panel.add(offsetField, gbc(1, 2, 2, 1, 1, 0, HORIZONTAL));
+    step2Panel.add(startTimeField, gbc(1, 3, 2, 1, 1, 0, HORIZONTAL));
+    step2Panel.add(endTimeField, gbc(1, 4, 2, 1, 1, 0, HORIZONTAL));
     
     DocumentListener dl = new DocumentListener() {
       @Override
@@ -271,7 +290,7 @@ private static JButton generateOutputButton;
       public void actionPerformed(ActionEvent e) {
         new Thread() {
           //Double endPreviewStartTime = timeToSeconds(endTimeField.getText()) - 20;
-          String[] startCmdArray = createEncodeCommand(startTimeField.getText(), new String[] { "-preset", "ultrafast", "-t", "20", "-vf", "scale=720:540" });
+          String[] startCmdArray = createEncodeCommand(calculateStartTime(), new String[] { "-preset", "ultrafast", "-t", "20", "-vf", "scale=720:540" });
           //String[] endCmdArray = createEncodeCommand(endPreviewStartTime.toString(), new String[] { "-preset", "ultrafast", "-t", "20" });
 
           public void run() {
@@ -302,8 +321,8 @@ private static JButton generateOutputButton;
       @Override
       public void actionPerformed(ActionEvent e) {
           final String[] cmdArray = createEncodeCommand(
-        		  startTimeField.getText(), 
-        		  new String[] { "-preset", "slow", "-to", endTimeField.getText() }); // TODO Change preset to slow
+        		  calculateStartTime(), 
+        		  new String[] { "-preset", "slow", "-to", calculateEndTime() });
           new Thread() { public void run() { runFFmpeg(cmdArray, "final.mp4", step4ProgressLabel, null); } }.start();
       }});
 
@@ -321,6 +340,34 @@ private static JButton generateOutputButton;
     frame.setVisible(true);
   }
 
+  public static String calculateStartTime() {
+    if (lqOffsetButton.isSelected()) {
+      double offsetSecs = timeToSeconds(offsetField.getText());
+      double startSecs = timeToSeconds(startTimeField.getText());
+      return new Double(startSecs - offsetSecs).toString();
+    } else {
+      return startTimeField.getText();
+    }
+  }
+  
+  public static String calculateEndTime() {
+	  if (lqOffsetButton.isSelected()) {
+		  double offsetSecs = timeToSeconds(offsetField.getText());
+		  double endSecs = timeToSeconds(endTimeField.getText());
+		  return new Double(endSecs - offsetSecs).toString();
+	  } else {
+      return endTimeField.getText();
+	  }
+  }
+
+  private static String calculateOffset() {
+    if (lqOffsetButton.isSelected()) {
+      return "-" + offsetField.getText();      
+    } else {
+      return offsetField.getText();
+    }
+  }
+  
   private static GridBagConstraints gbc(int x, int y, int width, int height, int weightx, int weighty, int fill) {
     GridBagConstraints c = new GridBagConstraints();
     c.gridx = x;
